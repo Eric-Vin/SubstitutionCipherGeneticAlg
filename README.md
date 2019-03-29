@@ -1,2 +1,83 @@
 # SubstitutionCipherGeneticAlg
-A genetic algorithm designed to break a substitution cipher.
+This program uses a genetic algorithm to break a substitution cipher. The program is structured around an two classes, an Incubator and Chromosomes. A Chromosome presents a possible way of decrypyting the passed ciphertext. An Incubator contains a population of chromosomes, and pushes them towards a more accurate decryption through the use of breeding and mutation. This continues until a perfect decryption is reached, or the program times out. For a thorough explanation of the algorithm, see the __Theory__ section. For instructions on how to use the program to decrypt a substitution cipher, see __Usage__.
+
+## Usage
+### General
+This project is written in __Python 3__, and relies on the pyspellchecker library.
+
+This program takes as input a string consisting of only a-z characters and spaces. If spaces are removed, the algorithm will not function, as it relies on breaking words into "Blocks" to match against training data when evaluating fitness.
+
+To see an example text being decrypted, run cipher_breaker.py. It will load an incubator with standard parameters and decrypt an example message.
+
+Before running cipher_breaker.py, you must first generate training data. If you plan on deciphering something in the realm of normal English, the default samples.txt located in the dataset folder should suffice and so this step can be safely skipped. Otherwise, if you wish to change or generate your own training data, see the __Sample Generation__ section.
+
+To begin, create an Incubator object with the desired parameters. These are covered in the parameters section. Then call the Incubator's train function while passing it a string that fits the above input requirements. If the `VERBOSE` global variable is enabled, then the program will output various updates to terminal so you can gauge the progress of the Incubator. The train function will terminate if either the current incubator cycle exceeds the `max_cycles` parameter, or a key, for which all words decrypted satisfy the spell checker, is found. The incubator will return a tuple of the format (Chromosome best_chromosome, int cycles_taken).
+
+**Note:** If the words you are attempting to decrypt are not found in the file located at words_path or the native pyspellchecker dictionary, the program will not terminate until max_cycles are exceeded.
+
+### Parameters
+  * **`sample_path`:** A path to a samples source file containing all training data to be fed to the incubator (Recommended samples.txt)
+  * **`words_path`:** A path to all words which the program should consider valid in addition to those already in pyspellchecker. (Recommended words_source.txt)
+  * **`elites`:** How many elites are carried over for each generation (Recommended 75-150)
+  * **`children`:** How many children are created for each generation (Recommended 350-700)
+  * **`randoms`:** How many random chromosomes are added each generation (Recommended 75-150)
+  * **`tournament_size`:** How many chromosomes are considered in a tournament (Recommended 4)
+  * **`cross_chance`:** Chance of crossing chromosomes when creating a child. `cross_chance` + `mutation_chance` should equal one (Recommended .65)
+  * **`mutation_chance`:** Change of mutating a chromosome when creating a child. `cross_chance` + `mutation_chance` should equal one (Recommended .35)
+  * **`shock_value`:** 0 if genetic shock disabled. Otherwise shock is enabled and shock_threshold is set to `shock_value` (Recommended 0, or greater than 3)
+  * **`max_cycles`:** Cycle number at which the simulation terminates (Recommended 100-200)
+  
+### Sample Generation (sample_generator.py)
+Included in the repository under the "dataset" directory are four files:
+
+  * obama_source.txt: A collection of speeches by President Obama
+  * pap_source.txt: Pride and Prejudice courtesy of Project Gutenberg
+  * words_source.txt: The standard American English dictionary included with Linux Mint
+  * combined_source.txt: All the previous files concatenated together
+  * samples.txt: Processed training data based off of combined_source.txt
+  
+The samples.txt included with the repository is based off of combined_source.txt, and should work for most English implementations. If you wish to use sample_generator.py you may either edit the global variables INPUTPATH and OUTPUTPATH and run the file manually or import the sample_generator function and pass it (`input_path`, `output_path`). The program parses the file into words, splits each word into blocks (See __Theory__, __Fitness__), hashes them into a dictionary to keep track of the counts, and finally stores it in a text file to be imported into an incubator.
+
+**Note:** words_source.txt is used twice in this program. Once as a source for samples as part of combined_source.txt and also as the passed `words_path` to supplement the native pyspellchecker dictionary.
+
+## Theory
+A genetic algorithm can be used to provide optimal solutions to problems with a large search space as long as there exists a genetic representative of the solution domain and there exists a fitness function that can be used to evaluate the fitness of each genetic representative. A genetic representative represents data that encodes qualities of an individual, in this case how a decryption is managed. A fitness function calculates how well any representative performs, with a higher fitness indicating a better solution. On a high level this algorithm manages a pool of chromosomes in an incubator. It guides these chromosomes towards being able to better map the `cipher_text` to text similar to the training data provided.
+
+### Chromosome
+In this problem, the genetic representation is a Chromosome class. A Chromosome contains 26 tuples mapping one letter a-z to another letter a-z. Each letter must appear once and only once on each side of a mapping in the chromosome. Each one of these tuples can be thought of as a gene in the chromosome. A chromosome has a function convertText(), which runs through any text, converting all characters that are applicable to the mappings it contains. Each chromosome can also be assessed for fitness, which is discussed further in the __Fitness__ section.
+
+### Incubator
+The Incubator class manages the chromosome pool. The incubator guides these chromosomes to better match their converted text to the samples provided in `samples_path`. The number of chromosomes in the pool is determined by the paramaters `elites`, `children`, and `randoms`. The sum of these three is the population of the incubator. The chromosomes are intially completely randomly generated, and then assessed for fitness. A new chromosome pool is created, representing the next generation. The top group of chromosomes, of size `elites`, are copied over unchanged. This is done to ensure the gene pool always has access to the most successful genes. Then a group of children are created, with the percentage created from crossover and mutation determined by `cross_chance` and `mutation_chance` respectively (See __Crossover__ and __Mutation__). The parents for these children are selected with a tournament process (See __Tournament__). Finally, a group of random chromosomes, of size `randoms`, is added to the new chromosome pool. The new chromosome pool then becomes the current chromosome pool, and the process is repeated. The incubator ends the process and returns a chromosome if one of two conditions is reached. The primary condition for return is if in the text converted by a chromosome, all words are found in either the standard pyspellchecker dictionary or in the words list at `words_path` (which is added to the pyspellchecker dictionary). Otherwise, the incubator waits till the number of cycles exceeds `max_cycles`, in which case the fittest chromosome is returned. 
+
+### Fitness
+The fitness of a chromosome is a value with one characteristic, it increases as the chromosome better maps the `cipher_text` to text similar to that encoded in `samples_path`. The value itself, or where it starts for each `cipher_text`, is irrelevant. We can, however, use the value for comparative purposes, assuming the fitness is calculated with the same `cipher_text` for both chromosomes. Should we perform this comparison, the chromosome with the higher fitness is the "better" chromosome. Before defining the fitness algorithm, one must define a "Block". A word can be broken into various blocks of size [1, length of word]. Every contiguous subarray of characters in a word is a block of that word. Each word in a text sample is broken into blocks, and the blocks of every word are tallied into a dictionary/hash table, which will be referred to as a "Block Table" and the process of doing so as "Blocking" or "Blocked". The Block tables stores every block as a key, and the number of times it is found in a text sample as a value. Before cipher_breaker.py is run, sample data must be processed into a block table by sample_generator.py. This is stored in a text document which is then parsed and stored into a "Sample Block Table" in the incubator when cipher_breaker.py is run, where it is used as training data. When the fitness of a chromosome is evaluated, the `cipher_text` is first mapped through the chromosome's convertText() function. That outputted text is then blocked, and its block table is referred to as the parsed block table. Finally, every block in the parsed block table is run through the fitness formula and added to a total sum. The fitness formula is (# of occurences of parsed block in parsed block table) * log2(# of occurences of parsed block in sample block table). For example, if the block "aab" occurred 12 times in the parsed block table and 123 times in the sample block table, then the value (12) * log2(123) would be added to the total sum. Once every block has being processed and added to the total, the total is returned as the fitness of a chromosome. The log base 2 is applied to the number of occurences in the sample block table because when dealing with a large sample text, the results can completely overpower the total.
+
+A fitness function sometimes encounters local optima. This is a situation in which chromosomes optimize to a point where no further optimization can be made without a temporary dip in fitness. In other words, they have reached a local optimum solution, but not the global optimum solution. This poses a problem, as a chromosome cannot understand sacrificing short term gains for long term gains, and may stall in certain local optima, unable to exit it and reach the global optima. This problem can compound onto itself, as a chromosome which has reached a local optima will start to overpower all other chromosomes and eliminate genetic diversity in the incubator, making it even harder to break out. There are many ways to combat this, including but not limited to:
+
+ * Increasing the population size: This makes it harder for a locally optimized chromosome to overpower the entire genetic pool, and makes the locally optimized chromosome more likely to encounter a chromsome that will break it out of the local optima as it spreads.
+ * Increasing mutation chance: This continues to force changes into the gene pool, even after the locally optimized chromosome has overpowered it, in a way that crossover cannot.
+ * Decreasing tournament size: This makes it harder for a locally optimized chromosome to spread quickly and overpower the gene pool.
+ * Genetic Shock: A protocol initiated when the max fitness of an incubator has stagnated for a set number of cycles. It serves to shock the gene pool out of a local optima. For more details, see __Genetic Shock__
+
+Thankfully, this fitness function rarely encounters local optima, and when it does it is often because of suboptimal training data in `samples_path`. If the sample data cannot be improved, one can consider implementing some of the above solutions.. If a local optima is encountered, it is oftentimes a "shallow" local optima (One which can be escaped of relatively easily), which can be broken through naturally with time, a decent population size, and a moderate mutation chance. If a "deep" local optima (One from which escape is relatively difficult) is encountered and no change is made for a signifcant portion of time, then one should consider some of the more extreme solutions, such as genetic shock.
+
+**Note:** The above solutions tend to slow down the process of convergence. This is good for preventing local optima, but will make the algorithm run slower overall.
+
+### Tournament
+The tournament process is used to select the parents of the children in the incubator. This is done to ensure that more than the top two fittest individuals are breeding. The process to conduct a tournament is to first select a random group of chromosomes of size `tournament_size` from the chromosome pool. Then the chromosome with the best fitness is chosen from this random group. The `tournament_size` parameter affects how quickly a dominant chromosome spreads throughout the gene pool. A smaller tournament size means that a fit gene will be present in less of the children of the next generation, as it is less likely to be present in the initial random group of a tournament. A larger `tournament_size` allows a gene to be present in more children. A balance must be struck when selecting `tournament_size`. A larger tournament_size will allow strong genes to spread through the pool quicker, meaning they will encounter other strong genes, breed, and cause the incubator to converge faster. This comes with some drawbacks though, especially with imperfect sample data, as the incubator can allow a local optima to overpower the gene pool.
+
+### Crossover
+Crossover generates two child chromosomes from two parent chromosomes, each with roughly half the mappings of either parent. This is a good way to ensure that the best parts of different chromosomes are mixed and that multiple chromosomes with different correct mappings can transform into one chromosome with many correct mappings after only a few generations. This is performed by the function crossChromosomes, which takes two chromosomes to act as parents. It creates two new chromosomes, new_chromosome_one and new_chromosome_two. These children are initially clones of the respective parent chromosomes. For each mapping in the chromosome, their is a 50% chance that the mappings are swapped between the children. This sometimes creates a conflict in the chromosome, as it may not necessarily preserve the qualities of the mappings that we rely on. To fix this, we also swap the complement found in the other chromosome. The end result is two children, each containing around half the genetic material of each parent.
+
+### Mutation
+Mutation generates a child chromosome from one parent chromosome, with two mappings swapped. For example, if a chromosome contained the mappings (a, b) and (c, d), and these mappings were the ones selected for mutation, then the resulting mappings in the child would be (a, d) and (c, b). This type of child allows another method for new genes to be introduced into successful genes, improving the genetic diversity of the incubator.
+
+### Genetic Shock
+Genetic shock is a protocol to ensure that a local optima does not completely obliterate genetic diversity in the incubator and stall out indefinitely. The parameter controlling genetic shock is `shock_value`. If it is set to 0, genetic shock will never trigger, though the shock ticker will still increment until the incubator escapes from fitness stagnation. If `shock_value` is set to any other value, should the shock ticker reach the `shock_value`, genetic shock will be triggered. Genetic shock goes through every chromosome, and if its fitness is within 10% of the max fitness, the chromosome is replaced with a random chromosome. All chromosomes not replaced are mutated. This serves the purpose of eliminating the elite chromosomes stuck in a local optima, but leaving their genetic material intact in the form of their distant relatives. In addition, the mutation encourages the spared relatives to reform in new ways while still keeping the best genes of the eliminated chromosomes, hopefully escaping the local optima.
+
+	_    _.--'"`'--._    _.--'"`'--._    _.--'"`'--._    _.--'"`'--._    _.--'"`'--._    _.--'"`'--._   
+	 '-:`.'|`|"':-.  '-:`.'|`|"':-.  '-:`.'|`|"':-.  '.`.'|`|"':-.  '-:`.'|`|"':-.  '-:`.'|`|"':-.  '.` 
+	.  '.  | |  | |'.  '.  | |  | |'.  '.  | |  | |'.  '. | |  | |'.  '.  | |  | |'.  '.  | |  | |'.  '. 
+	 '.  '.| |  | |  '.  '.| |  | |  '.  '.| |  | |  '.  .| |  | |  '.  '.| |  | |  '.  '.| |  | |  '.  
+	   '.  `.:_ | :_.' '.  `.:_ | :_.' '.  `.:_ | :_.' '.  .:_ | :_.' '.  `.:_ | :_.' '.  `.:_ | :_.' '.  
+	      `-..,..-'       `-..,..-'       `-..,..-'      `-..,..-'       `-..,..-'       `-..,..-'        
