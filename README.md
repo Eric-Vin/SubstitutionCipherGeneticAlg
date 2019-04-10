@@ -1,5 +1,5 @@
 # SubstitutionCipherGeneticAlg
-This program uses a genetic algorithm to break a substitution cipher. The program is structured around an two classes, an Incubator and Chromosomes. A Chromosome presents a possible way of decrypyting the passed ciphertext. An Incubator contains a population of chromosomes, and pushes them towards a more accurate decryption through the use of breeding and mutation. This continues until a perfect decryption is reached, or the program times out. For a thorough explanation of the algorithm, see the __Theory__ section. For instructions on how to use the program to decrypt a substitution cipher, see __Usage__.
+This program uses a genetic algorithm to break a substitution cipher. The program is structured around two classes, Incubators and Chromosomes. A Chromosome presents a possible way of decrypyting the passed ciphertext. An Incubator contains a population of chromosomes, and pushes them towards a more accurate decryption through the use of breeding and mutation. This continues until a perfect decryption is reached, or the program times out. For a thorough explanation of the algorithm, see the __Theory__ section. For instructions on how to use the program to decrypt a substitution cipher, see __Usage__.
 
 ## Usage
 ### General
